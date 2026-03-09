@@ -1,16 +1,18 @@
 name: Performance Test
 
-on: [pull_request]
+on:
+  pull_request:
 
 jobs:
   speed:
-    #   skip if PR is from a fork.
-    # TODO: this could probabaly be refactored a bit so that it runs on forks
     if: ${{ ! github.event.pull_request.head.repo.fork }}
-
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
     steps:
-      - name: Checkout code
+      - name: Checkout HEAD
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -19,78 +21,67 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.22"
 
-      - name: Run Head
+      - name: Run HEAD build & benchmark
         run: |
+          set -e
           go build -o current .
           repo_tmp=$(mktemp -d)
-          git clone https://github.com/trufflesecurity/trufflehog.git $repo_tmp
-          cd $repo_tmp
+          git clone --depth=1 https://github.com/trufflesecurity/trufflehog.git "$repo_tmp"
+          cd "$repo_tmp"
           git checkout v3.75.1
 
           user_time_sum=0
-
-          for i in {1..5}
-          do
+          for i in {1..5}; do
             tmpfile=$(mktemp)
-            /usr/bin/time -o $tmpfile $GITHUB_WORKSPACE/current filesystem "$repo_tmp" --no-verification --no-update > out.txt
-            cat $tmpfile
-            time_output=$(cat $tmpfile)
-            rm $tmpfile
-            user_time=$(echo $time_output | awk '{print $1}' | sed 's/user//')
-
-            # Add the user time to the sum
+            /usr/bin/time -o "$tmpfile" $GITHUB_WORKSPACE/current filesystem "$repo_tmp" --no-verification --no-update > /dev/null
+            time_output=$(cat "$tmpfile")
+            rm "$tmpfile"
+            user_time=$(echo "$time_output" | awk '{print $1}' | sed 's/user//')
             user_time_sum=$(echo "$user_time_sum + $user_time" | bc)
           done
 
-          average_user_time=$(echo "scale=3; $user_time_sum / 5" | bc)
-          echo HEAD_TIME=$average_user_time >> $GITHUB_ENV
+          echo HEAD_TIME=$(echo "scale=3; $user_time_sum / 5" | bc) >> $GITHUB_ENV
 
-      - name: Figure out previous tag
+      - name: Get previous tag
         run: |
           git fetch --tags
-          git tag -l --sort=-v:refname | head -n 1 > previous_tag.txt
-          echo PREVIOUS_TAG=$(cat previous_tag.txt) >> $GITHUB_ENV
+          latest=$(git tag -l --sort=-v:refname | head -n 1)
+          echo PREVIOUS_TAG=$latest >> $GITHUB_ENV
 
-      - name: Checkout code
+      - name: Checkout previous version
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ env.PREVIOUS_TAG }}
 
-      - name: Run Previous
+      - name: Run previous build & benchmark
         run: |
-          go build -o previous .
+          set -e
+          go build -o previous
           repo_tmp=$(mktemp -d)
-          git clone https://github.com/trufflesecurity/trufflehog.git $repo_tmp
-          cd $repo_tmp
+          git clone --depth=1 https://github.com/trufflesecurity/trufflehog.git "$repo_tmp"
+          cd "$repo_tmp"
           git checkout v3.75.1
 
           user_time_sum=0
-
-          for i in {1..5}
-          do
+          for i in {1..5}; do
             tmpfile=$(mktemp)
-            /usr/bin/time -o $tmpfile $GITHUB_WORKSPACE/previous filesystem "$repo_tmp" --no-verification --no-update > out.txt
-            cat $tmpfile
-            time_output=$(cat $tmpfile)
-            rm $tmpfile
-            user_time=$(echo $time_output | awk '{print $1}' | sed 's/user//')
-
-            # Add the user time to the sum
+            /usr/bin/time -o "$tmpfile" $GITHUB_WORKSPACE/previous filesystem "$repo_tmp" --no-verification --no-update > /dev/null
+            time_output=$(cat "$tmpfile")
+            rm "$tmpfile"
+            user_time=$(echo "$time_output" | awk '{print $1}' | sed 's/user//')
             user_time_sum=$(echo "$user_time_sum + $user_time" | bc)
           done
 
-          average_user_time=$(echo "scale=3; $user_time_sum / 5" | bc)
-          echo PREVIOUS_TIME=$average_user_time >> $GITHUB_ENV
+          echo PREVIOUS_TIME=$(echo "scale=3; $user_time_sum / 5" | bc) >> $GITHUB_ENV
 
       - name: Compare Results
         run: |
-          echo "head ($GITHUB_SHA) avg time (n=5): $HEAD_TIME"
-          echo "$PREVIOUS_TAG avg time (n=5): $PREVIOUS_TIME"
-          if [ $(echo "$HEAD_TIME > $PREVIOUS_TIME * 1.5" | bc) -eq 1 ]
-          then
-            echo "HEAD run time is at least 10% slower than PREVIOUS run time"
+          echo "HEAD avg: $HEAD_TIME"
+          echo "PREVIOUS avg: $PREVIOUS_TIME"
+          if [ $(echo "$HEAD_TIME > $PREVIOUS_TIME * 1.5" | bc) -eq 1 ]; then
+            echo "HEAD is significantly slower"
             exit 1
           fi
