@@ -1,27 +1,16 @@
-# 🔥 Ultimate GitHub Actions Workflow - Professional Edition
-# ══════════════════════════════════════════════════════════
-# ✅ SLSA3 Compliance - Supply Chain Security
-# ✅ TruffleHog - Secret Scanning
-# ✅ Go Build & Release - Automated
-# ✅ Security Scanning - Multi-layer
-# ✅ Code Quality - Best Practices
-# ══════════════════════════════════════════════════════════
-
 name: 🚀 Ultimate CI/CD Pipeline
-
 on:
   push:
-    branches: [ main, master, develop ]
+    branches:
+    - main
+    - release/*
   pull_request:
     branches: [ main, master, develop ]
   release:
     types: [created, published]
   workflow_dispatch:
   schedule:
-    # تشغيل تلقائي كل يوم الساعة 2 صباحاً
-    - cron: '0 2 * * *'
-
-# الصلاحيات الأساسية
+    - cron: "0 2 * * 1-5"
 permissions:
   contents: write
   issues: write
@@ -29,21 +18,16 @@ permissions:
   security-events: write
   actions: read
   id-token: write
-
-# متغيرات عامة
 env:
   GO_VERSION: '1.21'
   NODE_VERSION: '20'
   PYTHON_VERSION: '3.11'
-
 jobs:
-  # ═══════════════════════════════════════════════════════
-  # 1️⃣ Secret Scanning with TruffleHog
-  # ═══════════════════════════════════════════════════════
-  secret-scanning:
+ Secret Scanning with TruffleHog
+
+secret-scanning:
     name: 🔐 Secret Scanning (TruffleHog)
     runs-on: ubuntu-latest
-    
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
@@ -53,12 +37,9 @@ jobs:
       - name: 🔍 TruffleHog OSS Secret Scanner
         uses: trufflesecurity/trufflehog@v3.93.7
         with:
-          # فحص كل الكود
           path: ./
-          # فحص التاريخ الكامل
           base: ""
           head: HEAD
-          # رفع النتائج كـ artifacts
           extra_args: --debug --only-verified
 
       - name: 📊 Upload TruffleHog Results
@@ -68,16 +49,12 @@ jobs:
           name: trufflehog-results
           path: |
             **/trufflehog-*.json
-            **/secrets-*.txt
-
-  # ═══════════════════════════════════════════════════════
-  # 2️⃣ Code Quality & Linting
-  # ═══════════════════════════════════════════════════════
-  code-quality:
+            **/secrets-*.txt ode Quality & Linting
+ 
+code-quality:
     name: ✨ Code Quality Check
     runs-on: ubuntu-latest
-    needs: secret-scanning
-    
+    needs: secret-scanning 
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
@@ -118,11 +95,9 @@ jobs:
           file: ./coverage.out
           flags: unittests
           name: codecov-umbrella
-
-  # ═══════════════════════════════════════════════════════
-  # 3️⃣ Security Scanning (Multiple Tools)
-  # ═══════════════════════════════════════════════════════
-  security-scan:
+           
+           Security Scanning (Multiple Tools)
+security-scan:
     name: 🛡️ Security Scanning
     runs-on: ubuntu-latest
     needs: code-quality
@@ -169,11 +144,10 @@ jobs:
         with:
           name: dependency-check-report
           path: ${{ github.workspace }}/reports
-
-  # ═══════════════════════════════════════════════════════
-  # 4️⃣ SLSA3 Compliant Build
-  # ═══════════════════════════════════════════════════════
-  slsa-build:
+            
+            SLSA3 Compliant Build
+  
+slsa-build:
     name: 🏗️ SLSA3 Build & Release
     needs: [secret-scanning, code-quality, security-scan]
     permissions:
@@ -189,11 +163,9 @@ jobs:
       compile-builder: true
     secrets:
       registry-username: ${{ github.actor }}
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
+      registry-password: ${{ secrets.GITHUB_TOK Container Build &Scan concurrency
 
-  # ═══════════════════════════════════════════════════════
-  # 5️⃣ Container Build & Scan
-  # ═══════════════════════════════════════════════════════
+defaults:run-name:
   container-build:
     name: 🐳 Container Build & Push
     runs-on: ubuntu-latest
@@ -246,12 +218,9 @@ jobs:
       - name: 📤 Upload Container Scan Results
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: 'container-scan.sarif'
-
-  # ═══════════════════════════════════════════════════════
-  # 6️⃣ SBOM Generation (Software Bill of Materials)
-  # ═══════════════════════════════════════════════════════
-  sbom-generation:
+          sarif_file: 'container-scan.sarif
+            MBOM Generation (Software Bill of Materials)
+sbom-generation:
     name: 📋 SBOM Generation
     runs-on: ubuntu-latest
     needs: slsa-build
@@ -277,10 +246,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: sbom.spdx.json
-
-  # ═══════════════════════════════════════════════════════
-  # 7️⃣ License Compliance Check
-  # ═══════════════════════════════════════════════════════
+            License Compliance Check
+  
   license-check:
     name: ⚖️ License Compliance
     runs-on: ubuntu-latest
@@ -300,10 +267,7 @@ jobs:
         with:
           mode: check
           args: ./...
-
-  # ═══════════════════════════════════════════════════════
-  # 8️⃣ Performance Testing
-  # ═══════════════════════════════════════════════════════
+                    Performance Test
   performance-test:
     name: ⚡ Performance Testing
     runs-on: ubuntu-latest
@@ -327,10 +291,8 @@ jobs:
         with:
           name: benchmark-results
           path: benchmark.txt
-
-  # ═══════════════════════════════════════════════════════
-  # 9️⃣ Documentation Generation
-  # ═══════════════════════════════════════════════════════
+             Documentation Generation
+  
   documentation:
     name: 📚 Generate Documentation
     runs-on: ubuntu-latest
@@ -358,11 +320,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs
-
-  # ═══════════════════════════════════════════════════════
-  # 🔟 Notifications & Reporting
-  # ═══════════════════════════════════════════════════════
-  notifications:
+               Notifications & Repor
+notifications:
     name: 📢 Send Notifications
     runs-on: ubuntu-latest
     needs: [slsa-build, container-build, security-scan]
@@ -375,7 +334,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## ✅ Completed Jobs" >> $GITHUB_STEP_SUMMARY
           echo "- Secret Scanning: ${{ needs.secret-scanning.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Code Quality: ${{ needs.code-quality.result }}">> $GITHUB_STEP_SUMMARY
           echo "- Security Scan: ${{ needs.security-scan.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- SLSA Build: ${{ needs.slsa-build.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Container Build: ${{ needs.container-build.result }}" >> $GITHUB_STEP_SUMMARY
@@ -399,10 +358,8 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-
-  # ═══════════════════════════════════════════════════════
-  # 1️⃣1️⃣ Cleanup Old Artifacts
-  # ═══════════════════════════════════════════════════════
+             Cleanup Old Artifacts
+  
   cleanup:
     name: 🧹 Cleanup Old Artifacts
     runs-on: ubuntu-latest
